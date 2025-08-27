@@ -27,8 +27,7 @@ if (process.env.PROX) {
     setGlobalDispatcher(dispatcher);
 }
 const examples = {
-  "ask": ask,
-  "ingest knowledge": init,
+  "Refactor": ask
 };
 console.log(
   chalk.yellow(figlet.textSync("ABAP Refactor", { horizontalLayout: "full" }))
