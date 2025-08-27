@@ -1,0 +1,485 @@
+FUNCTION yc7f_xft_l_proxy_rel_fi_b.
+*"----------------------------------------------------------------------
+*"*"Local Interface:
+*"  IMPORTING
+*"     VALUE(IV_BELNR) TYPE  BELNR_D
+*"     VALUE(IV_GJAHR) TYPE  GJAHR
+*"     VALUE(IV_BUKRS) TYPE  BUKRS
+*"     VALUE(IV_FOREIGN_SYS) TYPE  BOOLEAN OPTIONAL
+*"  EXPORTING
+*"     VALUE(EV_ZLSPR) TYPE  DZLSPR
+*"     VALUE(ET_RETURN) TYPE  BAPIRET2_T
+*"----------------------------------------------------------------------
+
+
+  DATA:
+*        Simply
+         lv_logsys         TYPE logsys,
+         lv_delete_block   TYPE boolean,
+         lv_subrc          TYPE sysubrc,
+         lv_re_belnr       TYPE BELNR_D,
+         lv_awkey          TYPE bkpf-awkey,
+         lv_belnr          TYPE bkpf-belnr,
+         lv_gjahr          TYPE bseg-gjahr,
+         lv_reltyp         TYPE breltyp-reltype,
+         lv_buzei          type bseg-buzei,
+         lv_docnum         type edidc-docnum,
+*        Structures
+         ls_key            TYPE bapiacpmblk,
+         ls_return         TYPE bapiret2,
+         ls_bkpf_int       TYPE bkpf,
+         ls_bseg           TYPE bseg,
+         ls_bdcdata        TYPE bdcdata,
+         ls_object         TYPE borident,
+         ls_links          TYPE relgraphlk,
+         ls_edid4          type edid4,
+         ls_edidd          type edidd,
+         ls_edidc          type edidc,
+         ls_ori_edidc      type edidc,
+         ls_new_edidc      type edidc,
+         ls_e1fikpf        type e1fikpf,
+         ls_e1firef        type e1firef,
+         ls_e1fichd        type e1fichd,
+         lv_bukrs_snd      type bseg-bukrs,
+         ls_messagetab     TYPE bdcmsgcoll,
+         ls_bkpf           TYPE bkpf,
+*        Tables
+         lt_bseg           TYPE STANDARD TABLE OF bseg,
+         lt_return         TYPE bapirettab,
+         lt_bdcdata        TYPE STANDARD TABLE OF bdcdata,
+         lt_links          TYPE STANDARD TABLE OF relgraphlk,
+         lt_messagetab     TYPE TABLE OF bdcmsgcoll,
+         lt_edidd          TYPE STANDARD TABLE OF edidd,
+         lt_edidc          TYPE STANDARD TABLE OF edidc,
+         lt_edids          TYPE STANDARD TABLE OF edids,
+         lv_obj_id         TYPE cdhdr-objectid.
+
+*SOC 07.09.2022 VVX1HC CR 1386 Minimum stake invoice
+* Table declaration for Document change
+
+DATA:    BEGIN OF ZBKPF OCCURS 02.
+           INCLUDE STRUCTURE BKPF.
+DATA:    END OF ZBKPF.
+
+DATA:    BEGIN OF ZBSEG OCCURS 02.
+           INCLUDE STRUCTURE BSEG.
+DATA:    END OF ZBSEG.
+
+DATA:    BEGIN OF ZBKDF OCCURS 02.
+           INCLUDE STRUCTURE BKDF.
+DATA:    END OF ZBKDF.
+
+DATA:    BEGIN OF ZBSEC OCCURS 02.
+           INCLUDE STRUCTURE BSEC.
+DATA:    END OF ZBSEC.
+
+DATA:    BEGIN OF ZBSED OCCURS 02.
+           INCLUDE STRUCTURE BSED.
+DATA:    END OF ZBSED.
+
+DATA:    BEGIN OF ZBSET OCCURS 02.
+           INCLUDE STRUCTURE BSET.
+DATA:    END OF ZBSET.
+
+DATA: lv_tcode          TYPE CDHDR-TCODE,
+      lv_utime          TYPE CDHDR-UTIME,
+      lv_udate          TYPE CDHDR-UDATE,
+      lv_uname          TYPE CDHDR-USERNAME,
+      lt_bseg_new       TYPE STANDARD TABLE OF fbseg,
+      lt_bseg_old       TYPE STANDARD TABLE OF fbseg,
+      lt_XBSEC          TYPE STANDARD TABLE OF  FBSEC,
+      lt_YBSEC          TYPE STANDARD TABLE OF  FBSEC,
+      lt_XBSED          TYPE STANDARD TABLE OF  FBSED,
+      lt_YBSED          TYPE STANDARD TABLE OF  FBSED,
+      lt_XBSEG_ADD      TYPE STANDARD TABLE OF  FBSEG_ADD,
+      lt_YBSEG_ADD      TYPE STANDARD TABLE OF  FBSEG_ADD,
+      lt_XBSET          TYPE STANDARD TABLE OF  FBSET,
+      lt_YBSET          TYPE STANDARD TABLE OF  FBSET,
+      lv_PLANNED_CHANGE_NUMBER      type CDHDR-PLANCHNGNR,
+      lv_PLANNED_OR_REAL_CHANGES    type CDHDR-CHANGE_IND,
+      lv_NO_CHANGE_POINTERS         type CDHDR-CHANGE_IND,
+      lv_N_BKDF                     type BKDF,
+      lv_O_BKDF                     type BKDF,
+      lv_UPD_BKDF                   type CDPOS-CHNGIND,
+      lv_N_BKPF                     type BKPF,
+      lv_O_BKPF                     type BKPF,
+      lv_UPD_BKPF                   TYPE  CDPOS-CHNGIND,
+      lv_UPD_BSEC                   TYPE  CDPOS-CHNGIND,
+      lv_UPD_BSED                   TYPE  CDPOS-CHNGIND,
+      lv_UPD_BSEG_ADD               TYPE  CDPOS-CHNGIND,
+      lv_UPD_BSET                   TYPE  CDPOS-CHNGIND,
+      ls_bseg_new                   TYPE fbseg,
+      ls_bseg_old                   TYPE fbseg.
+*EOC 07.09.2022 VVX1HC CR 1386 Minimum stake invoice
+
+
+*  Begin of new change for mapping
+  DATA: Ltab_c054    TYPE STANDARD TABLE OF yc7f_xft_l_c054,        " Mapping DVN
+        l_c054    TYPE yc7f_xft_l_c054.                             " Mapping DVN
+  CLEAR :Ltab_c054,Ltab_c054[], L_C054.                             " Mapping DVN
+      data: lv_bukrs    TYPE bukrs,                                 " Mapping DVN
+          lt_message  TYPE STANDARD TABLE OF bapiret2.              " Mapping DVN
+
+  SELECT * FROM yc7f_xft_l_c054
+           INTO TABLE Ltab_c054
+           WHERE SOURCE_COMP_CODE = IV_BUKRS.
+     IF SY-subrc = 0.
+*  End of New change for Mapping
+
+*{   INSERT         SITK977638                                        1
+*   Mapping company codes
+
+*    data: lv_bukrs    TYPE bukrs,
+*          lt_message  TYPE STANDARD TABLE OF bapiret2.
+
+    CALL METHOD yc7f_xft_l_cl_coco_mapping=>map_comp_codes
+      EXPORTING
+        im_comp_code = IV_BUKRS
+      IMPORTING
+        ex_comp_code = lv_bukrs
+        ex_message   = ET_RETURN.
+
+    read table ET_RETURN TRANSPORTING NO FIELDS with key type = 'E'.
+    if sy-subrc = 0.
+      return.
+    endif.
+*}   INSERT
+*  Begin of new change for mapping
+     else.
+     lv_bukrs = IV_BUKRS.
+     ENDIF.
+*  End of New change for Mapping
+
+*<< CD3P - add authorization check on RFC call
+*  AUTHORITY-CHECK OBJECT 'S_TABU_NAM'
+*    ID 'ACTVT' FIELD '03'
+*    ID 'TABLE' FIELD 'BKPF'.
+*  IF sy-subrc <> 0.
+*    RETURN.
+*  ENDIF.
+*
+*  AUTHORITY-CHECK OBJECT 'S_TABU_NAM'
+*    ID 'ACTVT' FIELD '03'
+*    ID 'TABLE' FIELD 'BSEG'.
+*  IF sy-subrc <> 0.
+*    RETURN.
+*  ENDIF.
+*>>
+
+*   select from bkpf
+*{   REPLACE        SITK977638                                        2
+*\  SELECT SINGLE * FROM bkpf INTO ls_bkpf_int WHERE bukrs = iv_bukrs AND
+  SELECT SINGLE * FROM bkpf INTO ls_bkpf_int WHERE bukrs = lv_bukrs AND
+*}   REPLACE
+                                                   belnr = iv_belnr AND
+                                                   gjahr = iv_gjahr.
+  IF ls_bkpf_int IS INITIAL.
+*     not exist
+    ls_return-type        = 'E'.
+    ls_return-id          = '/XFT/INV_APPL_MESS'.
+    ls_return-number      = '316'. "BKPF Rechnung nicht gefunden.
+    CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+      EXPORTING
+        id         = ls_return-id
+        number     = ls_return-number
+        textformat = 'ASC'
+      IMPORTING
+        message    = ls_return-message.
+    APPEND ls_return TO et_return.
+    RETURN.
+  ENDIF.
+
+  IF  ls_bkpf_int-bstat <> ' ' AND ls_bkpf_int-bstat <> '' AND ls_bkpf_int-bstat <> 'S'.
+*     not post
+    ls_return-type        = 'E'.
+    ls_return-id          = '/XFT/INV_APPL_MESS'.
+    ls_return-number      = '319'. "Beleg hat nicht den Status "gebucht".
+    CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+      EXPORTING
+        id         = ls_return-id
+        number     = ls_return-number
+        textformat = 'ASC'
+      IMPORTING
+        message    = ls_return-message.
+    APPEND ls_return TO et_return.
+    RETURN.
+  ENDIF.
+
+*   is invoice blocked?
+*{   REPLACE        SITK977638                                        3
+*\  SELECT * FROM bseg INTO TABLE lt_bseg WHERE bukrs = iv_bukrs
+  SELECT * FROM bseg INTO TABLE lt_bseg WHERE bukrs = lv_bukrs
+*}   REPLACE
+                                          AND belnr = iv_belnr
+                                          AND gjahr = iv_gjahr.
+  IF sy-subrc = 0.
+*     handle creditor line
+    READ TABLE lt_bseg WITH KEY koart = 'K' INTO ls_bseg.
+    IF sy-subrc = 0.
+      IF ls_bseg-zlspr IS NOT INITIAL.
+        lv_delete_block = 'X'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+  IF lv_delete_block <> 'X'.
+    ls_return-type        = 'E'.
+    ls_return-id          = '/XFT/INV_APPL_MESS'.
+    ls_return-number      = '320'. "Rechnung ist nicht gesperrt.
+    CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+      EXPORTING
+        id         = ls_return-id
+        number     = ls_return-number
+        textformat = 'ASC'
+      IMPORTING
+        message    = ls_return-message.
+    APPEND ls_return TO et_return.
+    RETURN.
+  ENDIF.
+
+*      CALL FUNCTION 'OWN_LOGICAL_SYSTEM_GET'
+*        IMPORTING
+*          own_logical_system = lv_logsys.
+*
+*      ls_key-obj_type  = ls_bkpf_int-awtyp.
+*      ls_key-obj_key   = ls_bkpf_int-awkey.
+*      IF iv_foreign_sys IS SUPPLIED.
+*        ls_key-obj_sys   = ls_bkpf_int-awsys.
+*      ELSE.
+*        ls_key-obj_sys   = lv_logsys.
+*      ENDIF.
+**    {   REPLACE        SITK977638                                        4
+**    \  ls_key-comp_code = iv_bukrs.
+*      ls_key-comp_code = lv_bukrs.
+**    }   REPLACE
+*
+*    CALL FUNCTION 'BAPI_ACC_PYMNTBLK_UPDATE_POST'
+*      EXPORTING
+*        referenceinv = ls_key
+*      TABLES
+*        return       = lt_return.
+*
+*    LOOP AT lt_return INTO ls_return WHERE type = 'E' OR type = 'A'.
+*      APPEND ls_return TO et_return.
+*    ENDLOOP.
+
+*SOC 13.07.2022 VVX1HC CR 1386 Minimum stake invoice
+* Clear the  payment block for trigger the change log
+
+* Create old table to trigger change log
+    MOVE-CORRESPONDING ls_bseg TO ls_bseg_old.
+    APPEND ls_bseg_old TO lt_bseg_old.
+
+* Update BSEG tbale
+    ls_bseg-zlspr = ''.   "Clear payment block field
+    APPEND ls_bseg TO zbseg.
+    APPEND ls_bkpf_int TO zbkpf.
+
+    CALL FUNCTION 'CHANGE_DOCUMENT'
+      TABLES
+        T_BKDF           = zbkdf
+        T_BKPF           = zbkpf
+        T_BSEC           = zbsec
+        T_BSED           = zbsed
+        T_BSEG           = zbseg
+        T_BSET           = zbset.
+
+
+** set export parameter payment block to actual payment block
+    ev_zlspr = ls_bseg-zlspr.
+
+* Create new table to trigger change log
+    MOVE-CORRESPONDING ls_bseg TO ls_bseg_new.
+    APPEND ls_bseg_new TO lt_bseg_new.
+
+* Write change document
+      lv_obj_id+0(3)  = sy-mandt.
+      lv_obj_id+3(4)  = ls_bseg-bukrs.
+      lv_obj_id+7(10) = ls_bseg-belnr.
+      lv_obj_id+17(4) = ls_bseg-gjahr.
+
+      lv_tcode = sy-tcode.
+      lv_utime = sy-uzeit.
+      lv_udate = sy-datum.
+      lv_uname = sy-uname.
+
+
+      CALL FUNCTION 'BELEG_WRITE_DOCUMENT'
+        EXPORTING
+          OBJECTID                      = lv_obj_id
+          TCODE                         = lv_tcode
+          UTIME                         = lv_utime
+          UDATE                         = lv_udate
+          USERNAME                      = lv_uname
+          PLANNED_CHANGE_NUMBER         = lv_planned_change_number
+          OBJECT_CHANGE_INDICATOR       = 'U'
+          PLANNED_OR_REAL_CHANGES       = lv_planned_or_real_changes
+          NO_CHANGE_POINTERS            = lv_no_change_pointers
+          N_BKDF                        = lv_n_bkdf
+          O_BKDF                        = lv_o_bkdf
+          UPD_BKDF                      = lv_upd_bkdf
+          N_BKPF                        = lv_n_bkpf
+          O_BKPF                        = lv_o_bkpf
+          UPD_BKPF                      = lv_upd_bkpf
+          UPD_BSEC                      = lv_upd_bsec
+          UPD_BSED                      = lv_upd_bsed
+          UPD_BSEG                      = 'U'
+          UPD_BSEG_ADD                  = lv_upd_bseg_add
+          UPD_BSET                      = lv_upd_bset
+       TABLES
+          XBSEC                         = lt_xbsec
+          YBSEC                         = lt_ybsec
+          XBSED                         = lt_xbsed
+          YBSED                         = lt_ybsed
+          XBSEG                         = lt_bseg_new
+          YBSEG                         = lt_bseg_old
+          XBSEG_ADD                     = lt_xbseg_add
+          YBSEG_ADD                     = lt_ybseg_add
+          XBSET                         = lt_xbset
+          YBSET                         = lt_ybset.
+
+
+
+*EOC 13.07.2022 VVX1HC CR 1386 Minimum stake invoice
+
+*  DATA:
+**       simple
+*        lv_subrc          TYPE sysubrc,
+**       structures
+*        ls_bseg           TYPE bseg,
+*        ls_bkpf           TYPE bkpf,
+*        ls_bseg_new       TYPE bseg,
+*        ls_bdcdata        TYPE bdcdata,
+*        ls_bapiret2       TYPE bapiret2,
+**       tables
+*        lt_bseg           TYPE TABLE OF bseg,
+*        lt_bkpf           TYPE TABLE OF bkpf,
+*        lt_messagetab     TYPE TABLE OF bdcmsgcoll,
+*        lt_bseg_new       TYPE bseg_t,
+*        lt_bdcdata        TYPE STANDARD TABLE OF bdcdata.
+*
+** Read FI Document
+*  CALL FUNCTION 'FI_DOCUMENT_READ'
+*    EXPORTING
+*      i_bukrs     = iv_bukrs
+*      i_belnr     = iv_belnr
+*      i_gjahr     = iv_gjahr
+*    TABLES
+*      t_bkpf      = lt_bkpf
+*      t_bseg      = lt_bseg
+*    EXCEPTIONS
+*      wrong_input = 1
+*      not_found   = 2
+*      OTHERS      = 3.
+*
+*  IF sy-subrc <> 0.
+** Document does not exist
+*    ls_bapiret2 = yc7f_xft_l_cl_assistent=>create_bapiret2_msg(
+*        iv_type   = 'E'
+*        iv_class  = 'F5A'
+*        iv_number = '141' ).
+*    INSERT ls_bapiret2 INTO TABLE et_return.
+*    EXIT.
+*  ENDIF.
+*
+** read creditor line of items
+*  READ TABLE lt_bseg INTO ls_bseg
+*       WITH KEY bukrs = iv_bukrs
+*                belnr = iv_belnr
+*                gjahr = iv_gjahr
+*                koart = 'K'.
+*
+*  IF sy-subrc NE 0.
+** Processing terminated; no data found for this item
+*    ls_bapiret2 = yc7f_xft_l_cl_assistent=>create_bapiret2_msg(
+*        iv_type   = 'E'
+*        iv_class  = 'FKKRD'
+*        iv_number = '017' ).
+*    INSERT ls_bapiret2 INTO TABLE et_return.
+*    EXIT.
+*  ENDIF.
+*
+** Set parameter to assistent class (read in function module YC7F_XFT_L_INTERFACE_00001110)
+*  yc7f_xft_l_cl_assistent=>set_apm_call( iv_apm_call = 'X' ).
+*
+** Fill Batch input map
+*  ls_bdcdata-program = 'SAPMF05L'.
+*  ls_bdcdata-dynpro = '0102'.
+*  ls_bdcdata-dynbegin = 'X'.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  CLEAR ls_bdcdata-dynbegin.
+*  ls_bdcdata-fnam = 'RF05L-BELNR'.
+*  ls_bdcdata-fval = ls_bseg-belnr.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  ls_bdcdata-fnam = 'RF05L-BUKRS'.
+*  ls_bdcdata-fval = ls_bseg-bukrs.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  ls_bdcdata-fnam = 'RF05L-GJAHR'.
+*  ls_bdcdata-fval = ls_bseg-gjahr.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  ls_bdcdata-fnam = 'RF05L-BUZEI'.
+*  ls_bdcdata-fval = ls_bseg-buzei.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  CLEAR ls_bdcdata.
+*  ls_bdcdata-program = 'SAPMF05L'.
+*  ls_bdcdata-dynpro = '0302'.
+*  ls_bdcdata-dynbegin = 'X'.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  CLEAR ls_bdcdata-dynbegin.
+*  ls_bdcdata-fnam = 'BSEG-ZLSPR'.
+*  ls_bdcdata-fval = ''.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+*  CLEAR ls_bdcdata-dynbegin.
+*  ls_bdcdata-fnam = 'BDC_OKCODE'.
+*  ls_bdcdata-fval = 'AE'.
+*  APPEND ls_bdcdata TO lt_bdcdata.
+*
+** call transaction 'FB09' in background
+*  CALL FUNCTION 'YC7F_XFT_L_CALL_TRANSACTION'
+*    EXPORTING
+*      tcode                   = 'FB09'
+**      skip_screen             = 'X'
+*      mode_val                = 'E'
+*    IMPORTING
+*      subrc                   = lv_subrc
+*    TABLES
+*      using_tab               = lt_bdcdata
+**     spagpa_tab              = lt_spagpa
+*      mess_tab                = lt_messagetab
+*    EXCEPTIONS
+*      call_transaction_denied = 1
+*      tcode_invalid           = 2
+*      OTHERS                  = 3.
+*
+** Get data from business event 1110 (function module YC7F_XFT_L_INTERFACE_00001110).
+*  yc7f_xft_l_cl_assistent=>get_fi_doc_data(
+*     IMPORTING
+*       et_bseg = lt_bseg_new ).
+** clear parameter flag
+*  yc7f_xft_l_cl_assistent=>free_apm_call( ).
+*
+** set export parameter payment block to actual payment block (old value)
+*  ev_zlspr = ls_bseg-zlspr.
+*
+** get the new payment block
+*  IF NOT lt_bseg_new[] IS INITIAL.
+** if the document was not changed, the table is empty
+*    READ TABLE lt_bseg_new INTO ls_bseg_new
+*         WITH KEY bukrs = ls_bseg-bukrs
+*                  belnr = ls_bseg-belnr
+*                  gjahr = ls_bseg-gjahr
+*                  buzei = ls_bseg-buzei.
+*    IF sy-subrc EQ 0.
+*      ev_zlspr = ls_bseg_new-zlspr.
+*    ENDIF.
+*  ENDIF.
+
+
+
+ENDFUNCTION.

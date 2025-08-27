@@ -1,0 +1,591 @@
+Contents
+
+     Numeric calculation assignment (7.54)
+     String assignment (7.54)
+     ASSIGN … ELSE UNASSIGN (7.57)
+     ASSIGN struct-(comp) (7.57)
+     RETURN [expr] for functional methods (7.58)
+     Data Types
+     Enumerated Types (7.51)
+     Virtual Sort (7.52)
+     Indicators (7.55)
+     MOVE-CORRESPONDING … EXPANDING NESTED TABLES KEEPING TARGET LINES (7.56)
+     LOOP AT … STEP n (7.57)
+     CORRESPONDING Operator with MAPPING and DEFAULT (7.58)
+     CDS VIEWS
+
+ 
+
+1. Numeric calculation assignment (7.54)
+Assignment	Before 7.54	Since 7.54
+
++=,  -=, *=, /=
+	DATA(num) = 2.
+
+num = num + 1.	DATA(num) = 2.
+
+num += 1.
+
+2. String assignment (7.54)
+Assignment	Before 7.54	Since 7.54
+&&=	DATA text TYPE string.
+text = 'concatenate'.
+
+text = text && | Me!|	DATA text TYPE string.
+text = 'Concatenate'.
+
+text &&= | Me!|.
+
+3. ASSIGN … ELSE UNASSIGN (7.57)
+Before 7.57	Since 7.57
+DATA(field) = 'exists'.
+
+ASSIGN ('field') TO FIELD-SYMBOL(<fs>).
+IF <fs> IS ASSIGNED.
+…
+ENDIF.
+
+ASSIGN ('nofield') TO <fs>.
+IF <fs> IS ASSIGNED
+  AND sy-subrc = 0.  "assigned on 2nd assign
+…
+ENDIF.	DATA(field) = 'exists'.
+
+ASSIGN ('field') TO FIELD-SYMBOL(<fs>).
+IF <fs> IS ASSIGNED.
+...
+ENDIF.
+
+ASSIGN ('nofield') TO <fs> ELSE UNASSIGN.
+
+IF <fs> IS ASSIGNED.
+...
+ENDIF.
+
+ 4. ASSIGN struct-(comp) (7.57)
+Before 7.57	Since 7.57
+
+BEGIN OF  tystruc,            
+  comp1 TYPE i,  comp2 TYPE i,
+END OF tystruc
+
+FIELD-SYMBOLS: <struc> TYPE any, <comp> TYPE any.
+
+ASSIGN struc TO <struc>.
+DATA(name) = '<struc>-comp1'.
+
+DO 1000 TIMES. "runs in approx. 60 ms
+  ASSIGN  (name) TO <comp>.
+ENDDO.
+	
+
+ASSIGN struc TO <struc>.
+DATA(name) = 'COMP1'.
+
+DO 1000 TIMES.  "runs in approx. 50 ms
+  ASSIGN  <struc>-(name) TO <comp>.
+ENDDO.
+
+"Or alternatively
+
+DO 1000 TIMES.    "Runs in approx. 50 ms
+  ASSIGN  <struc>-(1) TO <comp>.
+ENDDO.
+
+5. RETURN [expr] for functional methods (7.58)
+Before 7.58	Since 7.58
+
+METHOD square. "IMPORTING root TYPE i
+                          "RETURNING VALUE(r) TYPE i.
+ DATA square type i.
+   TRY.
+     square = ipow( base = root exp = 2 ).
+    CATCH cx_sy_arithmetic_error.
+     square = 0.
+  ENDTRY.
+
+  r = square.
+ENDMETHOD.
+	
+
+METHOD square. "IMPORTING root TYPE i
+                          "RETURNING VALUE(r) TYPE i.
+  TRY.
+     RETURN ipow( base = root exp = 2 ).
+    CATCH cx_sy_arithmetic_error.
+      RETURN 0.
+  ENDTRY.
+
+ENDMETHOD.
+
+ 
+
+ 
+
+6. Data Types
+Version	New Data Type	Description                                    
+
+7.50
+	
+
+INT8
+
+(ABAP & DDIC)
+	
+
+    8-byte integers with signs
+    Initial value: 0 
+    Value range: -9,223,372,036,854,775,808 to +9,223,372,036,854,775,807
+    Output length: 20
+
+7.54
+	
+
+UTCLONG 
+
+(ABAP & DDIC)
+	
+
+    Time stamp (exact to 100 ns)
+    Initial value: 0 
+    Value range: 0001-01-01T00:00:00.0000000 to 9999-12-31T23:59:59.9999999
+    Valid Places: 27
+
+7.54
+	
+
+DECFLOAT16
+
+(ABAP[7.02] & DDIC)
+	
+
+    Decimal floating point number
+    Initial value: 0 
+    Valid Places: 16
+
+7.54
+	
+
+DECFLOAT34
+
+(ABAP[7.02] & DDIC)
+	
+
+    Decimal floating point number
+    Initial value: 0
+    Valid Places: 34 
+
+7.54
+	
+
+DATN
+
+(DDIC)
+	
+
+    Date in internal format of database
+    Initial value: 0  (DATS has initial value 00000000)
+
+7.54
+	
+
+TIMN
+
+(DDIC)
+	
+
+    Time in internal format of database
+    Initial value: 0  (TIMNS has initial value 000000)
+
+7.54
+	
+
+GEOM_EWKB
+
+(DDIC)
+	
+
+    Geometric data in EWKB representation
+    Initial value: Empty string
+
+
+7. Enumerated Types (7.51)
+
+Syntax
+
+TYPES BEGIN OF ENUM enum_type    [STRUCTURE struc]      [BASE TYPE dtype].
+  TYPES val1 [VALUE IS INITIAL],
+  TYPES val2 [VALUE val],
+  TYPES val3 [VALUE val],
+  ...
+TYPES END OF ENUM enum_type     [STRUCTURE struc].
+
+ Description
+
+Defines a list of allowed values. 
+
+Example 
+
+Syntax checker flags invalid assignment: 
+
+ 
+
+TYPES: BEGIN OF ENUM planet,
+    mercury,
+    venus,
+    earth,
+    mars,
+    jupiter,
+    saturn,
+    uranus,
+    neptune,
+END OF ENUM planet.
+
+DATA planet type planet.
+
+planet = earth.
+planet = Nebula. "Syntax error: Field "NEBULA" is unknown
+
+ 
+
+8. Virtual Sort (7.52)
+
+Syntax
+
+cl_abap_itab_utilities=>virtual_sort( IMPORTING IM_VIRTUAL_SOURCE
+                                                                              IM_FILTER_INDEX
+                                                         RETURNING RT_VIRTUAL_INDEX )
+
+Description
+
+For the given source table(s) and filter criteria a structure of index numbers is returned. These index numbers are in the required order to effectuate the requested sort. This index structure can be used to create a new (combined) sorted table while leaving the original table(s) unsorted.
+
+Examples
+
+Single Table
+
+For full example see class cl_demo_virtual_sort_simple.
+
+ITAB
+COL1	COL2	COL3	COL4
+6	4	G	I
+1	7	D	F
+6	9	A	B
+2	4	H	B
+1	4	A	H
+4	3	I	J
+10	8	E	E
+2	1	E	D
+9	5	C	G
+1	1	G	B
+
+ 
+
+DATA(v_index) = cl_abap_itab_utilities=>virtual_sort(
+                  im_virtual_source = VALUE #(( source = REF #( itab )
+                    components = VALUE #( ( name = 'col1' )  ( name = 'col2' )
+                 ) ) ) ).
+                 "Result: v_index = (10, 5, 2, 8, 4, 6, 1, 3, 9, 7) 
+
+DATA sorted_tab TYPE itab. "Sort by COL1, COL2 Ascending
+sorted_tab = VALUE #( FOR idx IN v_index ( itab[ idx ] ) ).
+
+ 
+
+ 
+COL1	COL2	COL3	COL4
+1	1	G	B
+1	4	A	H
+1	7	D	F
+2	1	E	D
+2	4	H	B
+4	3	I	J
+6	4	G	I
+6	9	A	B
+9	5	C	G
+10	8	E	E
+
+ 
+
+v_index = cl_abap_itab_utilities=>virtual_sort(
+                        im_virtual_source = VALUE #(
+                              ( source = REF #( itab )
+                                components = VALUE #(
+                                   ( name = 'col3'
+                                     astext = abap_true
+                                     descending = abap_true )
+                                   ( name = 'col4'
+                                     astext = abap_true
+                                     descending = abap_true ) ) ) ) ).
+"Result:   v_index = (6, 4, 1, 10, 7, 8, 2, 9, 5, 3)
+
+sorted_tab = VALUE #( FOR idx IN v_index ( itab[ idx ] ) ).
+             "Sort by COL3, COL4 Descending
+
+ 
+COL1	COL2	COL3	COL4
+4	3	I	J
+2	4	H	B
+6	4	G	I
+1	1	G	B
+10	8	E	E
+2	1	E	D
+1	7	D	F
+9	5	C	G
+1	4	A	H
+6	9	A	B
+
+ 
+
+Two tables
+
+For full example see class cl_demo_virtual_sort_combined.
+ITAB1	ITAB2
+COL1	COL2	COL1	COL2
+0	0	X	X
+1	1	X	X
+1	1	Y	Y
+1	1	X	Y
+0	0	X	X
+1	0	Y	Y
+1	0	X	Y
+1	0	X	Y
+0	0	Y	X
+1	1	Y	Y
+
+ 
+
+v_index = cl_abap_itab_utilities=>virtual_sort(
+             im_virtual_source = VALUE #(
+                ( source = REF #( itab1 )
+                  components = VALUE #( ( name = 'col1' )
+                                        ( name = 'col2' ) ) )
+                ( source = REF #( itab2 )
+                  components = VALUE #( ( name = 'col1'
+                                        astext = abap_true
+                                    descending = abap_true )
+                                        ( name = 'col2'
+                                        astext = abap_true
+                                    descending = abap_true ) ) ) ) ).
+"Result:   v_index = (9, 1, 5, 6, 7, 8, 3, 10, 4, 2)
+
+TYPES: BEGIN OF test_line,
+   col11 TYPE i,
+   col12 TYPE i,
+   col21 TYPE string,
+   col22 TYPE string,
+END OF test_line,
+test_tab TYPE STANDARD TABLE OF test_line WITH EMPTY KEY.
+DATA sorted_tab1 TYPE itab1.
+sorted_tab1 = VALUE #( FOR idx IN v_index ( itab1[ idx ] ) ).
+DATA sorted_tab2 TYPE itab2.
+sorted_tab2 = VALUE #( FOR idx IN v_index ( itab2[ idx ] ) ).
+
+FINAL(comb_tab) = VALUE test_tab( FOR i = 1 UNTIL i > 10
+                                      ( col11 = sorted_tab1[ i ]-col1
+                                        col12 = sorted_tab1[ i ]-col2
+                                        col21 = sorted_tab2[ i ]-col1
+                                        col22 = sorted_tab2[ i ]-col2 ) ).
+
+ 
+COL11	COL12	COL21	COL22
+0	0	Y	X
+0	0	X	X
+0	0	X	X
+1	0	Y	Y
+1	0	X	Y
+1	0	Y	Y
+1	1	Y	Y
+1	1	Y	Y
+1	1	X	Y
+1	1	X	X
+
+ 
+
+ 9. Indicators (7.55)
+
+Syntax
+
+TYPES dtype TYPE struct WITH INDICATORS ind [{TYPE type}].          […AS BITFIELD from 7.56]
+
+UPDATE dbtab FROM TABLE  itab INDICATORS [NOT] SET STRUCTURE set_ind.
+
+Description
+
+When used with “TYPES” it adds a component ind at the end of the structure struc the same number of first-level components.
+
+This can be used together with UPDATE dbtab to only update the components flagged for update.
+
+Example
+
+For full example see class cl_demo_update_set_indicator.
+
+DB table DEMO_UPDATE:
+ID	COL1	COL2	COL3	COL4
+A	1	10	100	0
+B	2	20	200	0
+C	3	30	300	0
+D	4	40	400	0
+E	5	50	500	0
+F	6	60	600	0
+
+ 
+
+TYPES ind_wa TYPE demo_update WITH INDICATORS col_ind
+                         TYPE abap_bool.
+DATA ind_tab TYPE TABLE OF ind_wa.
+
+ind_tab = VALUE #(
+    ( id = 'D'  col2 = 7777  col_ind-col2 = abap_true )
+    ( id = 'E'  col3 = 8888  col_ind-col3 = abap_true )
+    ( id = 'F'  col4 = 9999  col_ind-col4 = abap_true ) ).
+
+UPDATE demo_update FROM TABLE _tab INDICATORS 
+                                       SET STRUCTURE col_ind.
+
+ 
+
+ind_tab:
+ID	COL1	COL2	COL3	COL4	COL_IND
+D	0	7777	0	0	   X      
+E	0	0	8888	0	    X     
+F	0	0	0	9999	     X
+
+DB table DEMO_UPDATE:
+ID	COL1	COL2	COL3	COL4
+A	1	10	100	0
+B	2	20	200	0
+C	3	30	300	0
+D	4	7777	400	0
+E	5	50	8888	0
+F	6	60	600	9999
+
+ 
+
+10. MOVE-CORRESPONDING … EXPANDING NESTED TABLES       KEEPING TARGET LINES   (7.56)
+
+Example
+
+For full example see class cl_demo_move_crrspndng_itab.
+
+Given 2 internal tables
+
+jeffrey_towell2_0-1730695444276.png
+
+jeffrey_towell2_1-1730695456146.png
+
+MOVE-CORRESPONDING itab1 TO itab2.
+
+jeffrey_towell2_2-1730695506755.png
+
+MOVE-CORRESPONDING itab1 TO itab2 KEEPING TARGET LINES.
+
+jeffrey_towell2_3-1730695573224.png
+
+MOVE-CORRESPONDING itab1 TO itab2 EXPANDING NESTED TABLES.
+
+jeffrey_towell2_4-1730695619900.png
+
+MOVE-CORRESPONDING itab1 TO itab2 EXPANDING NESTED TABLES
+                                  KEEPING TARGET LINES.
+
+jeffrey_towell2_5-1730695654538.png
+
+ 
+
+11. LOOP AT … STEP n (7.57)
+
+Description
+
+STEP can be used with LOOP, FOR, APPEND, DELETE, INSERT, VALUE and NEW.
+
+For LOOP and FOR, if n is negative, then the loop starts at the last line of the table and goes backwards with a step size of n.
+
+Example
+
+For full example see class cl_demo_loop_at_itab_using_stp.
+
+ 
+
+DATA itab TYPE HASHED TABLE OF i WITH UNIQUE KEY table_line
+WITH NON-UNIQUE SORTED KEY sec_key
+COMPONENTS table_line
+##TABKEY[PRIMARY_KEY][SEC_KEY].
+
+itab = VALUE #( ( 4 ) ( 3 ) ( 7 ) ( 11 ) ( 1 ) ( 5 ) ).
+
+LOOP AT itab ASSIGNING <fs> STEP 2.
+    tabix = sy-tabix.
+    result = VALUE #( BASE result ( tabix = tabix value = <fs> ) ).
+ENDLOOP.
+"result = [(0, 0, 0)  (4, 7, 1)]       Note tabix is always 0.
+
+LOOP AT itab ASSIGNING <fs> STEP -2.
+    tabix = sy-tabix.
+    result = VALUE #( BASE result ( tabix = tabix value = <fs> ) ).
+ENDLOOP
+"result = [(0, 0, 0)  (5, 11, 3)]       Note tabix is always 0.
+
+ 
+
+ 12. CORRESPONDING Operator with MAPPING and DEFAULT  (7.58)
+
+Syntax
+
+CORRESPONDING #( struc1 MAPPING t1 = [s1] DEFAULT expr…)
+
+Explanation
+
+Where struc1 is the source structure and s1 is a component of the source structure.
+
+When s1 is supplied the result of the expression (expr) is only assigned if s1 is initial. Else s1 is assigned.
+
+When s1 is not supplied then the result of the expression is always assigned regardless of whether  s1 is initial.
+
+Example
+
+For full example see class cl_demo_corr_op_map_default.
+
+ 
+
+DATA: BEGIN OF struc1,
+    id1 TYPE i,
+    a TYPE string,
+    b TYPE string,
+    c TYPE i,
+    d TYPE string,
+    e TYPE i,
+END OF struc1.
+
+DATA: BEGIN OF struc2,
+    id2 TYPE i,
+    a TYPE string,
+    b TYPE string,
+    c TYPE i,
+    d TYPE string,
+    z TYPE i,
+END OF struc2.
+
+"Empty internal table
+DATA itab1 LIKE TABLE OF struc1 WITH EMPTY KEY.
+
+"Filling structure
+struc1 = VALUE #( id1 = 1 a = 'a' b = '' c = 2 d = '' e = 0 ).
+struc2 = CORRESPONDING #(
+            struc1 MAPPING 
+               id2 = id1
+                 b = b DEFAULT 'ha' && 'llo'
+                 c = c DEFAULT 1 + 5
+                 d = d DEFAULT VALUE #( itab1[ 1 ]-d DEFAULT 'hi' )
+                 z = DEFAULT 9.
+
+ 
+
+struc2:
+Component	Value	 
+ID2	1	 
+a	a	 
+b	hallo	src b is initial
+c	2	src c is not initial
+d	hi	itab1[1]-d invalid. Would shortdump without DEFAULT
+z	9	src e is initial
